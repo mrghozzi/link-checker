@@ -301,36 +301,139 @@ class LinkCheckerService
     }
 
     /**
-     * Check a batch of URL entries.
+     * Check a batch of URL entries in parallel using cURL Multi.
+     * High performance & prevents HTTP timeout bottlenecks.
      *
      * @param  array  $entries  Array of URL entries from collectUrls()
      * @return array  Same entries with 'check' key added
      */
     public function checkBatch(array $entries): array
     {
+        $mh = curl_multi_init();
+        $curlHandles = [];
         $results = [];
 
-        foreach ($entries as $entry) {
-            $check = $this->checkUrl($entry['url']);
-            $entry['check'] = $check;
-            $results[] = $entry;
+        // 1. Initialize curl handles for each entry
+        foreach ($entries as $index => $entry) {
+            $url = $entry['url'];
+            
+            // Check if valid first
+            if (!$this->isValidUrl($url)) {
+                $entry['check'] = [
+                    'status_code'      => 0,
+                    'is_broken'        => true,
+                    'is_redirect'      => false,
+                    'error'            => 'عنوان URL غير صالح',
+                    'response_time_ms' => 0,
+                    'final_url'        => null,
+                ];
+                $results[$index] = $entry;
+                continue;
+            }
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL            => $url,
+                CURLOPT_NOBODY         => true, // HEAD request
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 5,
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_USERAGENT      => 'MYADS-LinkChecker/1.1 (+https://myads.dev)',
+            ]);
+
+            curl_multi_add_handle($mh, $ch);
+            $curlHandles[$index] = [
+                'handle'    => $ch,
+                'entry'     => $entry,
+                'start_time'=> microtime(true)
+            ];
         }
 
-        return $results;
+        // 2. Execute handles concurrently
+        $active = null;
+        do {
+            $status = curl_multi_exec($mh, $active);
+            if ($active) {
+                curl_multi_select($mh);
+            }
+        } while ($active && $status == CURLM_OK);
+
+        // 3. Process results
+        foreach ($curlHandles as $index => $item) {
+            $ch = $item['handle'];
+            $entry = $item['entry'];
+            $startTime = $item['start_time'];
+
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            $curlError = curl_error($ch);
+            $curlErrno = curl_errno($ch);
+
+            // Handle HEAD method restriction by some servers (Retry with GET)
+            if ($httpCode === 0 || $httpCode === 405 || $httpCode === 403) {
+                // Secondary fallback request
+                $fallbackResult = $this->checkUrl($entry['url']);
+                $entry['check'] = $fallbackResult;
+                $results[$index] = $entry;
+                
+                curl_multi_remove_handle($mh, $ch);
+                curl_close($ch);
+                continue;
+            }
+
+            $elapsed = (int) round((microtime(true) - $startTime) * 1000);
+            
+            $check = [
+                'status_code'      => $httpCode,
+                'is_broken'        => false,
+                'is_redirect'      => false,
+                'error'            => null,
+                'response_time_ms' => $elapsed,
+                'final_url'        => ($finalUrl && $finalUrl !== $entry['url']) ? $finalUrl : null,
+            ];
+
+            if ($curlErrno !== 0) {
+                $check['is_broken'] = true;
+                $check['error'] = $this->translateCurlError($curlErrno, $curlError);
+            } elseif ($httpCode >= 400) {
+                $check['is_broken'] = true;
+                $check['error'] = $this->describeHttpStatus($httpCode);
+            }
+
+            if (in_array($httpCode, [301, 302, 303, 307, 308], true) || ($check['final_url'] && !$check['is_broken'])) {
+                $check['is_redirect'] = true;
+            }
+
+            $entry['check'] = $check;
+            $results[$index] = $entry;
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+
+        // Maintain original index order
+        ksort($results);
+        return array_values($results);
     }
 
     /**
-     * Get the admin URL for a given source entry.
+     * Get the correct admin/edit URL for a given source entry in MyAds v4.3.3.
      */
     public function adminUrl(string $sourceType, int $sourceId): ?string
     {
         return match ($sourceType) {
-            'directory' => url("/admin/directory/{$sourceId}"),
-            'banner'    => url("/admin/banners/{$sourceId}"),
-            'link'      => url("/admin/links/{$sourceId}"),
-            'smart_ad'  => url("/admin/smart-ads/{$sourceId}"),
-            'visit'     => url("/admin/visits/{$sourceId}"),
-            'store'     => url("/admin/store/{$sourceId}"),
+            'directory' => url("/directory/{$sourceId}/edit"),           // Directory edited front-end
+            'banner'    => url("/admin/banners/{$sourceId}/edit"),       // Banner edit route
+            'link'      => url("/admin/links"),                         // Admin Links list page
+            'smart_ad'  => url("/admin/smart-ads/{$sourceId}/edit"),     // Smart Ad edit route
+            'visit'     => url("/admin/visits"),                        // Admin Visits list page
+            'store'     => url("/admin/products/{$sourceId}/edit"),      // Product edit route (Duralux)
             default     => null,
         };
     }
@@ -353,7 +456,7 @@ class LinkCheckerService
     }
 
     /**
-     * Check if a string is a valid URL.
+     * Check if a string is a valid external URL (excludes internal domain links).
      */
     private function isValidUrl(string $url): bool
     {
@@ -363,6 +466,13 @@ class LinkCheckerService
 
         // Must start with http:// or https://
         if (!preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+
+        // Skip self/internal site domain URLs to prevent loop scanning
+        $host = parse_url($url, PHP_URL_HOST);
+        $currentHost = request()->getHost();
+        if ($host && str_contains($host, $currentHost)) {
             return false;
         }
 

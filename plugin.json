@@ -1,13 +1,13 @@
 {
     "name": "Broken Link Checker",
     "slug": "link-checker",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "MrGhozzi",
     "author_url": "https://github.com/mrghozzi",
     "description": "Scans all external URLs across Directory, Store, Banner Ads, Link Ads, Smart Ads, and Visit Exchange to detect broken links. Access it at /admin/link-checker.",
     "thumbnail": "thumbnail.png",
     "latest": "https://github.com/mrghozzi/link-checker/releases/latest",
     "siteweb": "https://github.com/mrghozzi/link-checker",
-    "min_myads": "4.3.0",
+    "min_myads": "4.3.3",
     "ADStn_url": "link-checker"
 }
