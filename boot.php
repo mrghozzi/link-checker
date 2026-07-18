@@ -67,10 +67,73 @@ Route::middleware(['web', 'auth', 'admin'])->group(function () {
     Route::get('/admin/link-checker', function () {
         $service = link_checker_service();
 
+        // Load settings
+        $settings = [
+            'groq_api_key' => \App\Models\Option::where('name', 'lc_groq_api_key')->value('o_valuer') ?: '',
+            'smart_scan_limit' => \App\Models\Option::where('name', 'lc_smart_scan_limit')->value('o_valuer') ?: 10,
+            'smart_scan_enabled' => \App\Models\Option::where('name', 'lc_smart_scan_enabled')->value('o_valuer') ?: 1,
+        ];
+
         return view('link_checker::index', [
             'catalog' => $service->catalog(),
+            'settings' => $settings,
         ]);
     })->name('admin.link-checker.index');
+
+    // AJAX: Save settings
+    Route::post('/admin/link-checker/settings', function (Request $request): JsonResponse {
+        $data = $request->validate([
+            'groq_api_key' => 'nullable|string',
+            'smart_scan_limit' => 'required|integer|min:1|max:100',
+            'smart_scan_enabled' => 'required|boolean',
+        ]);
+
+        \App\Models\Option::updateOrCreate(['name' => 'lc_groq_api_key'], ['o_valuer' => $data['groq_api_key'], 'o_type' => 'link_checker']);
+        \App\Models\Option::updateOrCreate(['name' => 'lc_smart_scan_limit'], ['o_valuer' => $data['smart_scan_limit'], 'o_type' => 'link_checker']);
+        \App\Models\Option::updateOrCreate(['name' => 'lc_smart_scan_enabled'], ['o_valuer' => $data['smart_scan_enabled'] ? 1 : 0, 'o_type' => 'link_checker']);
+
+        return response()->json(['success' => true]);
+    })->name('admin.link-checker.settings');
+
+    // AJAX: Test Groq API Key
+    Route::post('/admin/link-checker/test-groq', function (Request $request): JsonResponse {
+        $apiKey = $request->input('groq_api_key');
+        if (empty($apiKey)) {
+            return response()->json(['success' => false, 'message' => 'الرجاء إدخال مفتاح API أولاً']);
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($apiKey)
+                ->timeout(10)
+                ->get('https://api.groq.com/openai/v1/models'); // simple models endpoint to verify auth
+
+            if ($response->successful()) {
+                return response()->json(['success' => true, 'message' => 'الاتصال ناجح، الذكاء الاصطناعي يعمل!']);
+            }
+
+            return response()->json([
+                'success' => false, 
+                'message' => 'فشل الاتصال: مفتاح غير صالح أو الخدمة غير متوفرة (Code: ' . $response->status() . ')'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'خطأ في الاتصال: ' . $e->getMessage()]);
+        }
+    })->name('admin.link-checker.test-groq');
+
+    // AJAX: Force Execute Smart Scan
+    Route::post('/admin/link-checker/force-smart-scan', function (): JsonResponse {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('link-checker:smart-scan');
+            $output = \Illuminate\Support\Facades\Artisan::output();
+            return response()->json([
+                'success' => true, 
+                'message' => 'تم تنفيذ الفحص بنجاح. راجع صفحة التقارير للنتائج.',
+                'output' => $output
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'حدث خطأ أثناء التنفيذ: ' . $e->getMessage()]);
+        }
+    })->name('admin.link-checker.force-smart-scan');
 
     // AJAX: Collect URLs from selected sources
     Route::post('/admin/link-checker/collect', function (Request $request): JsonResponse {
@@ -144,3 +207,20 @@ Hooks::add_action('admin_sidebar_menu', function (): void {
         . '</a>'
         . '</li>';
 });
+
+// ─── Commands & Scheduling ───────────────────────────────────────────
+// Register the command so it can be called via terminal or web route
+\Illuminate\Console\Application::starting(function ($artisan) {
+    $artisan->resolveCommands([
+        \MyAds\Plugins\LinkChecker\Commands\SmartScanCommand::class,
+    ]);
+});
+
+if (app()->runningInConsole()) {
+
+    // Schedule the command to run hourly
+    app()->booted(function () {
+        $schedule = app(\Illuminate\Console\Scheduling\Schedule::class);
+        $schedule->command('link-checker:smart-scan')->hourly();
+    });
+}

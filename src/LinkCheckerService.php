@@ -47,6 +47,7 @@ class LinkCheckerService
                 'id_column'   => 'id',
                 'name_column' => 'name',
                 'icon'        => 'feather-image',
+                'extra_where' => ['statu', 1],
             ],
             'link' => [
                 'label'       => 'إعلانات الروابط',
@@ -55,6 +56,7 @@ class LinkCheckerService
                 'id_column'   => 'id',
                 'name_column' => 'name',
                 'icon'        => 'feather-external-link',
+                'extra_where' => ['statu', 1],
             ],
             'smart_ad' => [
                 'label'       => 'الإعلانات الذكية',
@@ -63,6 +65,15 @@ class LinkCheckerService
                 'id_column'   => 'id',
                 'name_column' => 'headline_override',
                 'icon'        => 'feather-zap',
+                'extra_where' => ['statu', 1],
+            ],
+            'status' => [
+                'label'       => 'المنشورات',
+                'table'       => 'status',
+                'url_column'  => 'txt',
+                'id_column'   => 'id',
+                'name_column' => null,
+                'icon'        => 'feather-message-circle',
             ],
             'visit' => [
                 'label'       => 'تبادل الزيارات',
@@ -168,7 +179,8 @@ class LinkCheckerService
 
                 // For store products, the o_valuer field contains description text,
                 // so we extract URLs from it instead of using it directly.
-                if ($sourceKey === 'store') {
+                // For status (posts), the txt field contains the post body, which might contain URLs.
+                if ($sourceKey === 'store' || $sourceKey === 'status') {
                     $extractedUrls = $this->extractUrlsFromText($rawUrl);
                     foreach ($extractedUrls as $extractedUrl) {
                         $urls[] = [
@@ -434,6 +446,7 @@ class LinkCheckerService
             'smart_ad'  => url("/admin/smart-ads/{$sourceId}/edit"),     // Smart Ad edit route
             'visit'     => url("/admin/visits"),                        // Admin Visits list page
             'store'     => url("/admin/products/{$sourceId}/edit"),      // Product edit route (Duralux)
+            'status'    => url("/status/{$sourceId}"),                   // Post URL
             default     => null,
         };
     }

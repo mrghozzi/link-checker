@@ -1,16 +1,21 @@
-# Broken Link Checker — MYADS Plugin
+# Smart Link Checker — MYADS Plugin
 
-Scans all external URLs across **Directory listings**, **Store products**, **Banner Ads**, **Link Ads**, **Smart Ads**, and **Visit Exchange** entries to detect broken, dead, or slow-responding links.
+Scans all external URLs across **Directory listings**, **Store products**, **Banner Ads**, **Link Ads**, **Smart Ads**, **Community Posts**, and **Visit Exchange** entries to detect broken, dead, or slow-responding links.
+
+Now featuring an **AI-Powered Smart Scan** utilizing the Groq API to deeply analyze link safety and detect inappropriate content (NSFW, phishing, illegal).
 
 ## Features
 
-- **6 source types**: Directory, Store, Banner, Link, Smart Ads, Visit Exchange
-- **AJAX batch scanning**: Checks 10 URLs per request to avoid server timeouts
-- **Real-time progress**: Live progress bar with percentage completion
-- **Status classification**: Healthy (2xx/3xx), Redirect (301/302), Broken (4xx/5xx/timeout)
-- **Filterable results**: Filter by status (all, healthy, broken) and by source type
-- **Direct admin links**: Jump to the relevant admin page for any broken entry
-- **Duralux admin theme**: Fully integrated with the MYADS admin panel
+- **AI Smart Scan**: Automatically scans links via Groq AI for malicious or inappropriate content and reports them directly to the Admin Report Center.
+- **7 source types**: Community Posts, Directory, Store, Banner, Link, Smart Ads, Visit Exchange.
+- **Admin Configuration**: Complete UI to configure the Groq API Key, test the connection, set batch limits, and force execution.
+- **Active Only**: Intelligently ignores suspended or inactive ads.
+- **AJAX batch scanning**: Checks 10 URLs per request to avoid server timeouts.
+- **Real-time progress**: Live progress bar with percentage completion.
+- **Status classification**: Healthy (2xx/3xx), Redirect (301/302), Broken (4xx/5xx/timeout).
+- **Filterable results**: Filter by status (all, healthy, broken) and by source type.
+- **Direct admin links**: Jump to the relevant admin page for any broken entry.
+- **Duralux admin theme**: Fully integrated with the MYADS admin panel.
 
 ## Installation
 

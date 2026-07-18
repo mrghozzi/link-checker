@@ -1,5 +1,17 @@
 # Changelogs
 
+## v1.2.0 — 2026-07-18
+
+### Added
+- **AI Smart Scan**: Integrated Groq AI to deeply analyze links for inappropriate, malicious, or deceptive content (NSFW, phishing, illegal).
+- **Admin Configuration**: Control Groq API Key, scan limits, and toggle Smart Scan directly from the dashboard.
+- **Connection Testing**: Added a "Test Connection" button to verify Groq API Key validity instantly.
+- **Force Scan**: Added an "Execute Now" button to bypass cron intervals and force immediate AI scanning.
+- **Smart Reporting**: The AI now automatically reports bad links directly to the MyAds Admin Report Center (`/admin/reports`).
+- **Post Integration**: AI intelligently reports the actual community post (Status) containing the bad link for accurate moderation.
+- **Active Filter**: AI and manual scanners now strictly ignore inactive/suspended ads.
+
+
 ## v1.1.0 — 2026-05-17
 
 ### Added

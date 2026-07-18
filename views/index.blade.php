@@ -5,6 +5,7 @@
 
 @php
     $catalog = $catalog ?? [];
+    $settings = $settings ?? ['groq_api_key' => '', 'smart_scan_limit' => 10, 'smart_scan_enabled' => 1];
     $totalUrls = collect($catalog)->where('available', true)->sum('url_count');
     $lastResults = session('link_checker_results', []);
     $lastSummary = session('link_checker_summary', []);
@@ -117,6 +118,54 @@
                 </div>
             </div>
         </section>
+
+        {{-- SETTINGS PANEL --}}
+        <section class="admin-panel mt-4">
+            <div class="admin-panel__header">
+                <div>
+                    <span class="admin-panel__eyebrow">إعدادات متقدمة</span>
+                    <h2 class="admin-panel__title">الفحص الذكي (Groq API)</h2>
+                    <p class="admin-panel__copy mb-0">تحكم في فحص الروابط التلقائي المعتمد على الذكاء الاصطناعي.</p>
+                </div>
+            </div>
+            <div class="admin-panel__body">
+                <form id="lc-settings-form">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">تفعيل الفحص الذكي</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="setting_smart_scan_enabled" {{ $settings['smart_scan_enabled'] ? 'checked' : '' }}>
+                            <label class="form-check-label" for="setting_smart_scan_enabled">تشغيل الفحص التلقائي في الخلفية</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Groq API Key</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="setting_groq_api_key" value="{{ $settings['groq_api_key'] }}" placeholder="gsk_...">
+                            <button type="button" class="btn btn-outline-info" id="lc-test-groq">
+                                <i class="feather-activity me-1"></i>اختبار الاتصال
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1">مفتاح API الخاص بـ Groq لتحليل الروابط بذكاء.</small>
+                        <div id="lc-groq-test-result" class="mt-2 text-sm fw-bold" style="display:none;"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">عدد الروابط في كل دفعة (الحد الأقصى)</label>
+                        <input type="number" class="form-control" id="setting_smart_scan_limit" value="{{ $settings['smart_scan_limit'] }}" min="1" max="100">
+                        <small class="text-muted">الحد الأقصى للروابط التي يتم فحصها كل ساعة (للحفاظ على أداء الخادم).</small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="submit" class="btn btn-success btn-sm" id="lc-save-settings">
+                            <i class="feather-save me-1"></i>حفظ الإعدادات
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" id="lc-force-scan">
+                            <i class="feather-play me-1"></i>نفذ الآن (تخطي فترة الراحة)
+                        </button>
+                        <span id="lc-settings-msg" class="ms-2 text-success" style="display:none;">تم الحفظ بنجاح!</span>
+                    </div>
+                </form>
+            </div>
+        </section>
+        </div>
 
         {{-- PROGRESS SIDEBAR --}}
         <aside class="admin-panel" id="lc-progress-panel">
@@ -606,6 +655,114 @@ document.addEventListener('DOMContentLoaded', function () {
         updateStartButton();
     });
 
+    // ── Settings Form Logic ──────────────────────────────────────────
+    const settingsForm = document.getElementById('lc-settings-form');
+    const settingsMsg = document.getElementById('lc-settings-msg');
+    const testGroqBtn = document.getElementById('lc-test-groq');
+    const groqTestResult = document.getElementById('lc-groq-test-result');
+
+    testGroqBtn.addEventListener('click', async function() {
+        const apiKey = document.getElementById('setting_groq_api_key').value;
+        if (!apiKey) {
+            groqTestResult.className = 'mt-2 text-sm fw-bold text-danger';
+            groqTestResult.textContent = 'الرجاء إدخال مفتاح API أولاً';
+            groqTestResult.style.display = 'block';
+            return;
+        }
+
+        testGroqBtn.disabled = true;
+        testGroqBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>جاري الاختبار...';
+        groqTestResult.style.display = 'none';
+
+        try {
+            const res = await fetch('{{ route("admin.link-checker.test-groq") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ groq_api_key: apiKey }),
+            });
+
+            const data = await res.json();
+            
+            groqTestResult.textContent = data.message || (data.success ? 'نجاح' : 'خطأ');
+            groqTestResult.className = 'mt-2 text-sm fw-bold ' + (data.success ? 'text-success' : 'text-danger');
+            groqTestResult.style.display = 'block';
+        } catch (err) {
+            groqTestResult.textContent = 'حدث خطأ في الاتصال بالسيرفر المحلي';
+            groqTestResult.className = 'mt-2 text-sm fw-bold text-danger';
+            groqTestResult.style.display = 'block';
+        }
+
+        testGroqBtn.disabled = false;
+        testGroqBtn.innerHTML = '<i class="feather-activity me-1"></i>اختبار الاتصال';
+    });
+    
+    settingsForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const saveBtn = document.getElementById('lc-save-settings');
+        saveBtn.disabled = true;
+        
+        try {
+            const res = await fetch('{{ route("admin.link-checker.settings") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    groq_api_key: document.getElementById('setting_groq_api_key').value,
+                    smart_scan_limit: document.getElementById('setting_smart_scan_limit').value,
+                    smart_scan_enabled: document.getElementById('setting_smart_scan_enabled').checked
+                }),
+            });
+            
+            if (res.ok) {
+                settingsMsg.style.display = 'inline';
+                setTimeout(() => settingsMsg.style.display = 'none', 3000);
+            } else {
+                alert('حدث خطأ أثناء حفظ الإعدادات');
+            }
+        } catch (err) {
+            alert('حدث خطأ في الاتصال');
+        }
+        
+        saveBtn.disabled = false;
+    });
+
+    // ── Force Scan Logic ─────────────────────────────────────────────
+    const forceScanBtn = document.getElementById('lc-force-scan');
+    
+    forceScanBtn.addEventListener('click', async function() {
+        if (!confirm('هل أنت متأكد من رغبتك بتشغيل الفحص الذكي الآن؟ قد يستغرق ذلك بضع ثوانٍ.')) return;
+        
+        forceScanBtn.disabled = true;
+        const originalText = forceScanBtn.innerHTML;
+        forceScanBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>جاري التنفيذ...';
+        
+        try {
+            const res = await fetch('{{ route("admin.link-checker.force-smart-scan") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                }
+            });
+
+            const data = await res.json();
+            alert(data.message);
+        } catch (err) {
+            alert('حدث خطأ في الاتصال أثناء تنفيذ الفحص.');
+        }
+
+        forceScanBtn.innerHTML = originalText;
+        forceScanBtn.disabled = false;
+    });
+    
     function updateStartButton() {
         const anyChecked = checkboxes.some(cb => cb.checked);
         startBtn.disabled = !anyChecked || isScanning;
