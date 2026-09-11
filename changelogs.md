@@ -1,5 +1,12 @@
 # Changelogs
 
+## v1.3.0 — 2026-09-11
+
+### Changed / Fixed
+- **Groq Model Upgrade:** Replaced decommissioned `llama3-8b-8192` with `llama-3.1-8b-instant` as the default AI scanner model.
+- **Configurable AI Model:** Added dynamic model selection in admin settings (`lc_groq_model`), allowing administrators to switch between `llama-3.1-8b-instant`, `llama-3.3-70b-versatile`, and `mixtral-8x7b-32768`.
+- **Platform Compatibility:** Bumped `min_myads` requirement to `4.5.6`.
+
 ## v1.2.0 — 2026-07-18
 
 ### Added

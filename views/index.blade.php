@@ -5,7 +5,7 @@
 
 @php
     $catalog = $catalog ?? [];
-    $settings = $settings ?? ['groq_api_key' => '', 'smart_scan_limit' => 10, 'smart_scan_enabled' => 1];
+    $settings = $settings ?? ['groq_api_key' => '', 'groq_model' => 'llama-3.1-8b-instant', 'smart_scan_limit' => 10, 'smart_scan_enabled' => 1];
     $totalUrls = collect($catalog)->where('available', true)->sum('url_count');
     $lastResults = session('link_checker_results', []);
     $lastSummary = session('link_checker_summary', []);
@@ -147,6 +147,15 @@
                         </div>
                         <small class="text-muted d-block mt-1">مفتاح API الخاص بـ Groq لتحليل الروابط بذكاء.</small>
                         <div id="lc-groq-test-result" class="mt-2 text-sm fw-bold" style="display:none;"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">نموذج Groq (AI Model)</label>
+                        <select class="form-select" id="setting_groq_model">
+                            <option value="llama-3.1-8b-instant" {{ ($settings['groq_model'] ?? 'llama-3.1-8b-instant') === 'llama-3.1-8b-instant' ? 'selected' : '' }}>LLaMA 3.1 8B Instant (الأسرع - مستحسن)</option>
+                            <option value="llama-3.3-70b-versatile" {{ ($settings['groq_model'] ?? '') === 'llama-3.3-70b-versatile' ? 'selected' : '' }}>LLaMA 3.3 70B Versatile (أكثر ذكاءً وتحليلاً)</option>
+                            <option value="mixtral-8x7b-32768" {{ ($settings['groq_model'] ?? '') === 'mixtral-8x7b-32768' ? 'selected' : '' }}>Mixtral 8x7B (دقيق ومتعدد اللغات)</option>
+                        </select>
+                        <small class="text-muted d-block mt-1">اختر النموذج المستخدم لفحص الروابط المشبوهة وتحليل محتواها.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">عدد الروابط في كل دفعة (الحد الأقصى)</label>
@@ -715,6 +724,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: JSON.stringify({
                     groq_api_key: document.getElementById('setting_groq_api_key').value,
+                    groq_model: document.getElementById('setting_groq_model') ? document.getElementById('setting_groq_model').value : 'llama-3.1-8b-instant',
                     smart_scan_limit: document.getElementById('setting_smart_scan_limit').value,
                     smart_scan_enabled: document.getElementById('setting_smart_scan_enabled').checked
                 }),

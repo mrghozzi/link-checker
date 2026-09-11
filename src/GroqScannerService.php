@@ -10,11 +10,12 @@ use Illuminate\Support\Facades\Log;
 class GroqScannerService
 {
     private string $apiKey;
-    private string $model = 'llama3-8b-8192';
+    private string $model;
 
     public function __construct()
     {
         $this->apiKey = \App\Models\Option::where('name', 'lc_groq_api_key')->value('o_valuer') ?: '';
+        $this->model = \App\Models\Option::where('name', 'lc_groq_model')->value('o_valuer') ?: 'llama-3.1-8b-instant';
     }
 
     /**

@@ -70,6 +70,7 @@ Route::middleware(['web', 'auth', 'admin'])->group(function () {
         // Load settings
         $settings = [
             'groq_api_key' => \App\Models\Option::where('name', 'lc_groq_api_key')->value('o_valuer') ?: '',
+            'groq_model' => \App\Models\Option::where('name', 'lc_groq_model')->value('o_valuer') ?: 'llama-3.1-8b-instant',
             'smart_scan_limit' => \App\Models\Option::where('name', 'lc_smart_scan_limit')->value('o_valuer') ?: 10,
             'smart_scan_enabled' => \App\Models\Option::where('name', 'lc_smart_scan_enabled')->value('o_valuer') ?: 1,
         ];
@@ -84,11 +85,13 @@ Route::middleware(['web', 'auth', 'admin'])->group(function () {
     Route::post('/admin/link-checker/settings', function (Request $request): JsonResponse {
         $data = $request->validate([
             'groq_api_key' => 'nullable|string',
+            'groq_model' => 'nullable|string',
             'smart_scan_limit' => 'required|integer|min:1|max:100',
             'smart_scan_enabled' => 'required|boolean',
         ]);
 
-        \App\Models\Option::updateOrCreate(['name' => 'lc_groq_api_key'], ['o_valuer' => $data['groq_api_key'], 'o_type' => 'link_checker']);
+        \App\Models\Option::updateOrCreate(['name' => 'lc_groq_api_key'], ['o_valuer' => $data['groq_api_key'] ?? '', 'o_type' => 'link_checker']);
+        \App\Models\Option::updateOrCreate(['name' => 'lc_groq_model'], ['o_valuer' => $data['groq_model'] ?? 'llama-3.1-8b-instant', 'o_type' => 'link_checker']);
         \App\Models\Option::updateOrCreate(['name' => 'lc_smart_scan_limit'], ['o_valuer' => $data['smart_scan_limit'], 'o_type' => 'link_checker']);
         \App\Models\Option::updateOrCreate(['name' => 'lc_smart_scan_enabled'], ['o_valuer' => $data['smart_scan_enabled'] ? 1 : 0, 'o_type' => 'link_checker']);
 
