@@ -1,4 +1,4 @@
-# Smart Link Checker — MYADS Plugin
+# Smart Link Checker (AI-Powered) — v1.3.0
 
 Scans all external URLs across **Directory listings**, **Store products**, **Banner Ads**, **Link Ads**, **Smart Ads**, **Community Posts**, and **Visit Exchange** entries to detect broken, dead, or slow-responding links.
 
@@ -26,7 +26,7 @@ Now featuring an **AI-Powered Smart Scan** utilizing the Groq API to deeply anal
 
 ## Requirements
 
-- MYADS v4.3.0+
+- MYADS v4.5.6+
 - PHP 8.2+ with cURL extension
 
 ## License
